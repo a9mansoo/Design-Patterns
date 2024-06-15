@@ -1,0 +1,76 @@
+#!/bin/bash
+
+usage () {
+   echo "Incorrect arguments supplied" 
+   exit 1
+}
+
+diff_check () {
+   diff -s "${1}" "${2}".out > /dev/null 
+   if [ "$?" -ne 0 ]; then
+     echo "Test failed: ${2}"
+     
+     if [ -f "${2}".args ]; then
+        echo "Args:"
+        cat "${2}".args
+     else
+        echo "Args:"
+     fi
+
+    if [ -f "${2}".in ]; then
+       echo "Input:"
+       cat "${2}".in
+    else
+       echo "Input:"
+    fi
+
+     echo "Expected:"
+     cat "${2}".out
+     echo "Actual:"
+     cat "${1}"
+   fi
+}
+
+
+if [ "$#" -ne 2 ]; then
+   usage
+else
+  # Else loop through the number of test.args files
+  for i in $(cat "${1}")
+  do
+     # Check for missing or unreadable .out files
+     if [ ! -r "${i}".out ]; then
+        echo "Corresponding ${i} file missing/unreadable"
+     else
+        # Corresponding .out file exists and is readable.
+        # Make a temp file to store the stdout
+        tmpfile=$(mktemp /tmp/"${i}".XXXXXX)
+
+        if [ -f "${i}".args -a -f "${i}".in ]; then 
+            # Take contents of each file stem and execute the program.
+            ("${2}"< "${i}".in  $(cat "${i}".args)) > "$tmpfile"
+            # Check the differences in each file
+            diff_check "$tmpfile" "${i}"
+            rm "$tmpfile"
+
+        # If only the args file is present
+        elif [ -f "${i}".args ]; then
+            ("${2}" $(cat "${i}".args)) > "$tmpfile"
+            diff_check "$tmpfile" "${i}"
+            rm "$tmpfile"
+
+        # If only the in file is present
+        elif [ -f "${i}".in ]; then
+            ("${2}" < "${i}".in) > "$tmpfile"
+            diff_check "$tmpfile" "${i}"
+            rm "$tmpfile"
+       
+       else
+            # The .args and .in  files do not exist, run the command as is
+            "${2}" > "$tmpfile"
+            diff_check "$tmpfile" "${i}"
+            rm "$tmpfile"
+        fi
+      fi
+  done 
+fi   
